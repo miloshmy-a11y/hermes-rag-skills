@@ -26,6 +26,14 @@ source PDFs on disk.
    assignment / instrument / draft file. Before trusting any DOI, confirm it appears on the file's OWN
    title page (grep first ~4000 chars of extracted text). If only *other* DOIs appear, the entry is
    mislabeled — do NOT load metadata from that DOI. (This was real corruption the user caught.)
+   **Co-verify the file's IDENTITY too:** a correct DOI + Crossref match does NOT mean the stored
+   `extracted_text` is the right paper. A file can hold a completely different document (e.g. the ENSS
+   French-2000 paper stored a p53/breast-cancer article). When auditing, run a title-overlap check
+   (see `rag-verification-protocol` → `references/fulltext-integrity.md` + `scripts/audit_fulltext_mismatch.py`):
+   if <25% of the title's content words appear in the file, read the file head — if it's an unrelated
+   paper / publisher cover page / failed-scrape landing page, rebuild the file AND the indexed fields
+   (title/journal/year/authors/brief_abstract/measures/doc_type) from Crossref/PubMed in ONE pass.
+   Never leave a half-fixed record (corrected country but brief_abstract still from the bad file).
 3. **Separate doc_type.** Tag every entry `study | ebook | assignment | instrument | other`.
    An instrument/questionnaire or FYP draft is NEVER a "study". Mixing them is how the index rots.
 4. **Instrument/population over-assignment is the #1 bug.** Re-derive instrument tags FROM THE PAPER'S
@@ -81,6 +89,72 @@ source PDFs on disk.
      ENSS studies found" is the algorithm's seed-matching, not a finding — the user's stated knowledge that
      their thesis is the Malaysian ENSS study they know of is the ground truth). See `verified-academic-research`
      pitfall on not fabricating gaps.
+
+## Audit methodology — random small-batch + error-rate target (USER-CORRECTED this session)
+Large systematic passes through the WHOLE catalog miss errors that small focused batches catch.
+The user diagnosed it directly: *"maybe you work in large chunks and so lost focus on details"* — and
+endorsed random sampling of ~10–12 records per round as the higher-fidelity method. Encode this:
+- **Audit in random/small batches, not one giant pass.** Sample N (10–12) full-text records, verify
+  EACH against its actual file (title-overlap + read head), fix only genuine issues, repeat. Random
+  sampling surfaces different records each round; after ~8–10 rounds the residual error rate drops
+  below 5% and approaches 0%. (A prior "audit all 252 at once" attempt missed country + measures
+  errors that the small-batch rounds caught.)
+- **Set an explicit error-rate target: <5%, ideally 0%.** After each round, quantify genuine issues
+  remaining (NOT scanner false positives) as % of full-text records. Stop when <5%. Report the number
+  + the false-positive types you excluded, so the user sees the true rate, not the raw scan.
+- **Verify MULTIPLE dimensions, not just country.** Country is the easiest to check but not the only
+  corruption. Each round also check: (a) is the stored `extracted_text` the RIGHT paper (title-overlap
+  <25% ⇒ read head; unrelated paper / publisher cover page / "javascript disabled" landing = MISMATCH);
+  (b) is `doc_type` populated & plausible; (c) does `full_text_status` match the file on disk. These
+  catch the silent corruptions (e.g. ENSS French-2000 stored a p53 article; Karasek-1979 stored a 2019
+  HEMS paper; NSS-1981 stored an HCV article) that a country-only audit misses entirely.
+- **Add a 4th dimension: file-INTEGRITY signatures + field backfill.** The title-overlap check MISSES
+  two systemic ingestion bugs: (A) PRISMA/scoping-review TEMPLATE swapped for the article ("Tips for
+  reporting this item…" boilerplate, not the paper); (B) OUM coursework/student-assignment WRAPPER
+  swapped for the article (Chittra/Badrul/MPU module text). Also check (C) `status=present` but NO file
+  path on disk, and (D) `keywords_llm` emptiness on real research (backfill by READING the abstract —
+  per-study, careful, not a dump). Full signatures + backfill recipes (verified_at churn fix, relevance
+  tagging, OA chain) are in `references/fulltext_integrity_signatures.md`. Detection regexes:
+  ```python
+  PRISMA=["tips for reporting this item","eligibility criteria with a rationale","preferred reporting items","identify any specific restrictions such as date","data charting form"]
+  COURSE=["open university malaysia","oum","chittra selvi","badrul hisham","final year project","project paper submitted","assignment 3","matrix no","learning centre","appreciation of ethics"]
+  # flag if (PRISMA hit OR COURSE hit) and title_not_in_text and len(t)<8000
+  ```
+- **TRAP: external audit reports may target a DIFFERENT catalog/codebase.** If the user pastes a review
+  from another agent citing "722 documents", "quality_score", "add_documents_from_folder()",
+  "domain: OUM_Research" — those functions/fields may not exist HERE. Before acting: (1) count real docs
+  (`len(data["documents"])` — this catalog had 526, not 722); (2) check which claimed fields exist;
+  (3) grep the actual search code for which fields it reads (`official_keywords` IS read by
+  `general_rag.py`/`hybrid_search.py`; `quality_score` does NOT exist here). Act only on points REAL for
+  this catalog; tell the user which claims were from a foreign system. The *spirit* (bulk ingestion left
+  quality gaps) may be valid even when the specifics are wrong. (This session: Claude's report was
+  partly valid — `official_keywords` 85% empty and `verified_at` 99% missing ARE real in this code — but
+  the 722-doc premise and function names were from a different codebase.)
+- **When a file is wrong, fix file + indexed fields in ONE pass** (reinforces Golden Rule #2). Do NOT
+  fix country but leave `brief_abstract`/`measures`/`keywords_llm` derived from the bad file. User:
+  *"if full text was wrong so is likely also index record ... better save energy and verify both at
+  the same time."* Re-derive title/journal/year/authors/brief_abstract/measures/doc_type from
+  Crossref/PubMed (never from the corrupted file). Cleared `keywords_llm`/`measures` from the bad
+  text; refill only after a real body/abstract is in place.
+- **On acquiring new full text, do comprehensive re-indexing immediately** (same pass). User: *"once
+  you adding any new full text do directly more comprehensive indexing."* After writing the real text,
+  populate measures (from actual text, e.g. UWES/MBI for a job-engagement study), doc_type (from
+  abstract/methods), brief_abstract, keywords_llm — don't leave it for a later pass.
+- **Sequence: acquire missing → verify → backup.** User: *"try first get those missing papers, if
+  don't have nevermind proceed next with verification before backup."* Attempt OA retrieval of
+  `meta_only` records FIRST; for those with no OA (paywalled/foundational), leave valid `meta_only`
+  with Crossref metadata (nevermind). THEN run a verification pass. THEN commit/push backup.
+- **Verify-before-backup, and watch the save-failure trap.** A script that writes text files to disk
+  but CRASHES before `json.dump` leaves the catalog JSON out of sync with disk (real file present, but
+  `full_text_status` still says `meta_only`). After any multi-record edit script, re-read the catalog
+  and assert `full_text_status` matches the on-disk file size (>800B for present/abstract_only). If a
+  script aborted mid-loop, the disk files are real but the JSON save never ran — re-apply the status
+  updates and save. Always run a FRESH ad-hoc verification (not a cached/suite-green claim) before
+  pushing: catalog valid, 0 wrong-body files, 0 mismatched, status/disk consistent, country ~0%.
+- OA re-acquisition chain that worked (see `references/random_audit_methodology.md` for the script
+  outline): PMC `fullTextXML` (Europe PMC `rest/<PMCID>/fullTextXML`) → EPMC abstract
+  (`rest/search?query=DOI:`) → Semantic Scholar `openAccessPdf` → Unpaywall `api.unpaywall.org/v2/<DOI>`
+  → publisher OA PDF (Nature `/articles/<id>.pdf`, DovePress getfile). Crossref for metadata always.
 
 ## Rebuild recipe (from source PDFs on disk)
 See `references/catalog_audit_rebuild.md` for the full, copy-pasteable script outline:
@@ -202,9 +276,14 @@ verified thesis links are authoritative: keep them, only fill missing fields.
 **V3 — LINE-BY-LINE VERIFY AUDIT (run before any expansion).** Audit the existing index entry-by-entry,
 **studies only** (skip ebook / website / policy / instrument / org_doc / gov_doc / tool / assignment):
 1. Does `files.*` path exist on disk? If yes → open it, confirm title/authors/year in the index match
-   the content; fix mismatches from the file. If missing → locate on source disk by basename; copy/relink
-   (absolute path under SOURCE_PDFS/SOURCE_TEXT). If still missing and it's a real study → set
-   `full_text_status: pending` (user may upload later); keep metadata, never leave a broken path.
+   the content; fix mismatches from the file. **Also confirm the FILE IS THE RIGHT PAPER** (not a
+   mismatched/empty file): run the title-overlap check — if <25% of the title's content words appear
+   in the file, read the file head; an unrelated paper / publisher cover page / "javascript is disabled"
+   landing page means the file is wrong → rebuild file + indexed fields from Crossref/PubMed in one pass
+   (see `rag-verification-protocol` → `references/fulltext-integrity.md`). If missing → locate on source
+   disk by basename; copy/relink (absolute path under SOURCE_PDFS/SOURCE_TEXT). If still missing and it's
+   a real study → set `full_text_status: pending` (user may upload later); keep metadata, never leave a
+   broken path.
 2. Stub (<3KB) or empty extracted text → flag `notes.fulltext_status='stub_or_empty_needs_retry'`.
 3. Missing metadata → enrich from Crossref (DOI) or extracted text.
 4. Only DELETE an entry if provably non-existent AND obviously wrong (garbage title, no identifier, no
@@ -220,7 +299,13 @@ are legitimate bibliography entries but NOT studies — keep as `web_reference`,
 don't audit them in a "studies" pass. (See also rule 10 / Step 11 on inclusive scope for the whole
 catalog — those are kept; V4 is about scoping a *studies* verification pass, not excluding them globally.)
 
-See `references/verify_audit_discipline.md` for the copy-paste audit loop.
+- `references/verify_audit_discipline.md` — copy-paste audit loop for V1–V4.
+- `references/random_audit_methodology.md` — random small-batch audit loop + OA re-acquisition chain
+  + verify-before-backup recipe (USER-CORRECTED: small batches > one giant pass; fix file+index in
+  one pass; acquire→comprehensive-reindex→verify→backup order).
+- `references/fulltext_integrity_signatures.md` — PRISMA-template / OUM-coursework-wrapper / status=
+  present-no-file mismatch signatures (title-overlap detector MISSES these) + `keywords_llm` backfill
+  discipline + `verified_at` churn fix + `relevance` tagging + the foreign-audit-report trap.
 
 ## Related
 - `general-purpose-rag` (the search/import skill this catalog belongs to). It is currently user-owned,
