@@ -13,6 +13,20 @@ metadata:
 
 # RAG Master Skill — the single entry point
 
+## STABILITY / DO-NOT-DRIFT (load-bearing rules — any session editing the catalog or sub-skills MUST follow)
+
+Hardened 2026-08-03 after real errors. Do NOT bypass even if asked to "just add" a record:
+
+1. **Crossref is the authoritative citation/metadata source.** Verify every DOI via
+   `https://api.crossref.org/works/<DOI>`; trust Crossref over OpenAlex/S2/PubMed/full-text
+   snippets. Never judge a DOI wrong from fallback text.
+2. **Verify-before-merge** — no record added without Crossref (or 2-source) verification.
+3. **Abstract/snippet sufficient for foundational & frequently-cited works** (Karasek 1979,
+   Selye 1936, Siegrist ERI, NSS, French 2000 ENSS): `meta_only`/`abstract_only` is enough.
+4. **Never guess `measures`/instrument fields** — only from the paper's actual methods/full text.
+5. **NSS ≠ ENSS** — distinct instruments, tag separately.
+6. **Catalog is general / topic-agnostic** — never hardcode population/geo in logic.
+
 This skill is a **router**. It does not re-implement search/ingestion/verification —
 it tells the agent which specialized sub-skill to load for the user's actual request,
 and how to call it. Load the sub-skill named in the routing table below with

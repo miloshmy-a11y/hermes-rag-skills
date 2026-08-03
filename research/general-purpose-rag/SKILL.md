@@ -30,6 +30,25 @@ parameters:
 
 # General-Purpose RAG System v4.5.3
 
+## STABILITY / DO-NOT-DRIFT (load-bearing rules — any session editing this catalog or skill MUST follow)
+
+Hardened 2026-08-03 after real errors (false DOI misattribution from S2/PubMed fallback
+text; guessed `measures` fields). Do NOT bypass even if asked to "just add" a record:
+
+1. **Crossref is the authoritative citation/metadata source.** Verify every DOI via
+   `https://api.crossref.org/works/<DOI>`; trust Crossref's title/authors/year over
+   OpenAlex / Semantic Scholar / PubMed / retrieved full-text snippets. Never judge a
+   DOI wrong from fallback full-text content.
+2. **Verify-before-merge.** No record added without Crossref (or 2-source) verification.
+3. **Abstract/snippet sufficient for foundational & frequently-cited works** (Karasek 1979,
+   Selye 1936, Siegrist ERI, Gray-Toft & Anderson NSS, French 2000 ENSS): store
+   `full_text_status: meta_only`/`abstract_only`; do NOT chase full bodies of classics.
+4. **Never guess `measures`/instrument fields.** Only record an instrument if it appears in
+   the paper's actual methods/full text. If unknown, leave `measures` empty — do not infer.
+5. **NSS ≠ ENSS.** Nursing Stress Scale (Gray-Toft & Anderson 1981) and Expanded Nursing
+   Stress Scale (French 2000) are DISTINCT instruments. Tag them separately.
+6. **Catalog is general / topic-agnostic.** Never hardcode population/geo in logic.
+
 ## Overview
 Domain-tuned RAG system (currently nursing-stress / occupational-health) for indexing and searching the user's literature catalog. Features smart query expansion, automatic low-recall triggers, web fallback with content verification, defuddle HTML cleaning, and APA citation output. Ranking weights are domain-specific (see Result Ranking note).
 
