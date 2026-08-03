@@ -1,7 +1,7 @@
 # RAG Catalog Rebuild — Verified Recipe (from source PDFs on disk)
 
 Tested pattern from a real session: rebuilt a 717-entry corrupted catalog into a clean 172-doc
-catalog from `D:\work\sayang\OUM\RESEARCH` + `books` PDFs. All steps local; nothing destructive
+catalog from `<YOUR_WORK_FOLDER>\sayang\OUM\RESEARCH` + `books` PDFs. All steps local; nothing destructive
 (backup first).
 
 ## Step 0 — Backup
@@ -15,7 +15,7 @@ coursework/notes trees. Output `SOURCE_INVENTORY.json`.
 
 ```python
 import os, hashlib, json
-roots=[r"D:\work\sayang\OUM\RESEARCH", r"D:\work\sayang\OUM\books"]
+roots=[r"<YOUR_WORK_FOLDER>\sayang\OUM\RESEARCH", r"<YOUR_WORK_FOLDER>\sayang\OUM\books"]
 recs=[]
 for root in roots:
     for dp,_,fs in os.walk(root):

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Legal Full-Text Retrieval Pipeline v4.5.2
+Legal Full-Text Retrieval Pipeline v4.5.3
 ==========================================
 Uses only legal, open-access sources for PDF/text retrieval:
 

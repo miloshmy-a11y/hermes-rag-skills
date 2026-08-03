@@ -55,7 +55,15 @@ class UniversalRAG:
         # Convert to native format
         return os.path.abspath(path)
     
-    # Query expansion dictionary - conservative concept expansion within domains
+    # Query expansion dictionary — OPTIONAL DOMAIN-TUNING, NOT a topic gate.
+    # IMPORTANT (topic-agnostic design): this dict is only consulted when a QUERY TERM
+    # literally matches one of its KEYS. A query like "diabetes" or "wound care" matches
+    # no key here, so it gets NO nursing/stress expansion — the catalog is searched as-is.
+    # For a fully general ("universal") instance you may EMPTY this dict; expansion simply
+    # becomes a no-op. It is intentionally kept separate from ranking/config so a deployer
+    # can swap domain vocabulary without touching search logic. Kept here (not a separate
+    # file) for portability of the legacy script; precise_search.py is the active,
+    # fully topic-agnostic search and does not depend on this dict.
     QUERY_EXPANSIONS = {
         "workload": ["work load", "work-load", "heavy workload", "excessive workload",
                      "task load", "staffing shortage", "understaffing", "overwork",
@@ -745,13 +753,12 @@ class UniversalRAG:
         
         # Combine results with clear labeling
         all_results = results + [{'source': 'web_fallback', **r} for r in web_results]
-        
-        # If web_results is empty and still low, log for review
-        if len(results) == 0 and not web_results:
-            self._log_low_recall_query(query, search_trace['expansion_terms'], 0)
+
+        # NOTE: low-recall logging is already handled above (inside the web-fallback
+        # branch) — do NOT log again here, or the same query gets logged twice.
         
         # Sort and limit
-        all_results.sort(key=lambda x: x.get('match_score', x.get('match_score', 0)) if isinstance(x.get('match_score'), (int, float)) else 0, reverse=True)
+        all_results.sort(key=lambda x: x.get('match_score', 0) if isinstance(x.get('match_score'), (int, float)) else 0, reverse=True)
         final_results = all_results[:max_results]
         
         # Attach search trace to results for transparency
@@ -896,7 +903,10 @@ class UniversalRAG:
                     "has_file": 'extracted_text' in doc.get('files', {}) or 'full_text_pdf' in doc.get('files', {}),
                     "abstract": doc.get('abstract', '')[:200],
                     "source": "local_catalog",
-                    "match_type": "expanded" if expansion_map else "literal"
+                    # match_type is per-RESULT (not per-search): an expansion tag in THIS
+                    # document's matched_evidence means it matched via an expanded term.
+                    "match_type": "expanded" if any(
+                        str(e).startswith("[EXPANSION") for e in matched_evidence) else "literal"
                 })
         
         # Sort by score
@@ -1146,6 +1156,46 @@ class UniversalRAG:
         self.catalog['metadata']['verified_dois'] = verified_count
         self.catalog['metadata']['domains'] = sorted(by_domain.keys())
     
+    @staticmethod
+    def _extract_official_keywords(text):
+        """Best-effort extraction of the paper's explicit 'Keywords:' list from PDF text.
+        Returns a list of keyword strings (empty if none found)."""
+        if not text:
+            return []
+        # Common keyword-section markers
+        for marker in ['keywords:', 'key words:', 'keyword list:', 'index terms:']:
+            idx = text.lower().find(marker)
+            if idx == -1:
+                continue
+            tail = text[idx + len(marker): idx + len(marker) + 400]
+            # Stop at the next likely section heading / sentence boundary
+            for stop in ['\n\n', 'abstract', 'introduction', 'intro', 'background',
+                         'methods', 'methodology', 'method', 'results', 'findings',
+                         'discussion', 'conclusion', 'conclusions', 'references',
+                         'doi', '©', 'volume', 'issue', 'pp', 'pages', '1.']:
+                si = tail.lower().find(stop)
+                if si > 0:
+                    tail = tail[:si]
+                    break
+            # Split on common separators
+            parts = re.split(r'[;,\n]', tail)
+            kws = [p.strip(' .:-').strip() for p in parts if p.strip(' .:-').strip()]
+            kws = [k for k in kws if 2 <= len(k) <= 60][:15]
+            if kws:
+                return kws
+        return []
+
+    @staticmethod
+    def _title_similarity(a, b):
+        """Jaccard similarity of token sets (lowercased). Used for duplicate detection
+        when a paper has no real DOI (local: ID)."""
+        def toks(s):
+            return set(re.findall(r'[a-z0-9]+', (s or '').lower()))
+        ta, tb = toks(a), toks(b)
+        if not ta or not tb:
+            return 0.0
+        return len(ta & tb) / len(ta | tb)
+
     def add_documents_from_folder(self, folder_path, domain="general", auto_verify=True):
         """Add all documents from a folder recursively"""
         folder_path = self._normalize_path(folder_path)
@@ -1223,10 +1273,63 @@ class UniversalRAG:
                 
                 doi = dois[0] if dois else f"local:{hashlib.md5(dst.encode()).hexdigest()[:8]}"
                 
-                # Check for duplicates
+                # Check for duplicates (exact DOI)
                 existing = self.check_doi_duplicate(doi)
+                # FIX #3: for papers WITHOUT a real DOI (local: pseudo-ID, which is a
+                # hash of the *path* not content), also do a title-similarity check so
+                # the same paper under a different filename/path is caught.
+                if not existing and doi.startswith('local:'):
+                    src_title = os.path.splitext(filename)[0]
+                    for d in self.catalog.get('documents', []):
+                        if self._title_similarity(src_title, d.get('title', '')) >= 0.6:
+                            existing = d
+                            break
                 if existing:
-                    print(f"  ⏭️ Duplicate DOI skipped: {doi}")
+                    # FIX #4: staleness / re-scan. If the source file changed since this
+                    # entry was added (mtime or size differs), re-extract + update instead
+                    # of silently skipping — so corrected/OCR-fixed PDFs actually refresh.
+                    changed = False
+                    try:
+                        if existing.get('file_size') and existing['file_size'] != filesize:
+                            changed = True
+                        if existing.get('file_mtime'):
+                            cur_mtime = datetime.fromtimestamp(os.path.getmtime(src_path)).isoformat()
+                            if existing['file_mtime'] != cur_mtime:
+                                changed = True
+                    except:
+                        pass
+                    if changed:
+                        print(f"  ♻️ Source changed — re-scanning: {filename[:40]}")
+                        # Remove old extracted text artifact if present
+                        old_txt = existing.get('files', {}).get('extracted_text')
+                        if old_txt:
+                            try: os.remove(os.path.join(self.base_dir, old_txt))
+                            except: pass
+                        # Update in place: re-extract text + metadata onto the existing entry
+                        instruments = self.identify_instruments(extracted_text)
+                        population = self.identify_population(extracted_text, filename)
+                        tags = self.infer_tags(extracted_text, instruments, population, domain)
+                        existing['instrument'] = instruments
+                        existing['population'] = population
+                        existing['inferred_tags'] = tags
+                        existing['official_keywords'] = self._extract_official_keywords(extracted_text)
+                        existing['abstract'] = abstract
+                        existing['files'] = {
+                            'base_path': self.base_dir,
+                            'full_text_pdf': os.path.basename(dst),
+                            'extracted_text': text_filename
+                        }
+                        existing['file_mtime'] = datetime.fromtimestamp(os.path.getmtime(src_path)).isoformat() if os.path.exists(src_path) else existing.get('file_mtime','')
+                        existing['file_size'] = filesize
+                        existing['added_date'] = datetime.now().isoformat()
+                        if doi.startswith('10.') and auto_verify:
+                            vm = self.verify_doi_metadata(doi)
+                            if vm.get('status') == 'VERIFIED':
+                                existing['verified_at'] = vm.get('verified_at')
+                                existing['verification_status'] = 'VERIFIED'
+                        print(f"  ✅ Updated existing entry")
+                        continue
+                    print(f"  ⏭️ Duplicate skipped: {doi}")
                     # Remove copied file
                     try:
                         os.remove(dst)
@@ -1242,6 +1345,8 @@ class UniversalRAG:
                 population = self.identify_population(extracted_text, filename)
                 tags = self.infer_tags(extracted_text, instruments, population, domain)
                 
+                official_keywords = self._extract_official_keywords(extracted_text)
+                
                 doc_entry = {
                     'doi': doi,
                     'title': os.path.splitext(filename)[0],
@@ -1249,12 +1354,19 @@ class UniversalRAG:
                     'authors': [],
                     'year': '',
                     'journal': 'Not specified',
+                    'volume': '',
+                    'issue': '',
+                    'pages': '',
                     'instrument': instruments,
                     'population': population,
                     'inferred_tags': tags,
+                    'official_keywords': official_keywords,
+                    'scope_notes': '',
                     'domain': domain,
                     'verification_status': 'UNVERIFIED',
                     'verification_note': 'Pending Crossref verification',
+                    'file_mtime': datetime.fromtimestamp(os.path.getmtime(src_path)).isoformat() if os.path.exists(src_path) else '',
+                    'file_size': filesize,
                     'files': {
                         'base_path': self.base_dir,
                         'full_text_pdf': os.path.basename(dst),
@@ -1279,6 +1391,9 @@ class UniversalRAG:
                             doc_entry['abstract'] = verified_meta['abstract']
                         doc_entry['verification_status'] = 'VERIFIED'
                         doc_entry['verification_note'] = 'Crossref DOI resolved successfully'
+                        # BUG FIX #1: persist verified_at so _is_recently_verified() works
+                        # for freshly-ingested docs (otherwise they get re-verified on 1st search).
+                        doc_entry['verified_at'] = verified_meta.get('verified_at')
                         verified += 1
                         enhanced += 1
                         print(f"  ✅ VERIFIED with Crossref metadata")

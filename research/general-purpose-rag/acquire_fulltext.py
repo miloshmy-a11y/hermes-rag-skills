@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Full-Text Acquisition Script v4.5.2
+Full-Text Acquisition Script v4.5.3
 
 Priority chain for full-text acquisition (fallback for when PDFs aren't pre-indexed):
 1. Crossref oa_url → best open access PDF

@@ -3,9 +3,9 @@
 ## Context
 Built a universal RAG system from 4 sources:
 1. ENSS research (79 thesis references) - `~/.hermes/cache/web/ENSS_research/`
-2. OUM Books (25 papers + instruments) - `D:\work\sayang\OUM\RESEARCH\bsc\pdf`
-3. All OUM documents (625 files) - full recursive scan of `D:\work\sayang\OUM`
-4. Mendeley backup (78 PDFs) - `D:\work\mendeley import`
+2. OUM Books (25 papers + instruments) - `<YOUR_WORK_FOLDER>\sayang\OUM\RESEARCH\bsc\pdf`
+3. All OUM documents (625 files) - full recursive scan of `<YOUR_WORK_FOLDER>\sayang\OUM`
+4. Mendeley backup (78 PDFs) - `<YOUR_WORK_FOLDER>\mendeley import`
 
 **Final catalog**: 718 documents (after comprehensive deduplication), 199 Crossref-verified DOIs
 **Domains**: ENSS (74), OUM_Research (583), Selected Studies (22), Mendeley Import (24), OUM_Books (15)
@@ -13,7 +13,7 @@ Built a universal RAG system from 4 sources:
 ## Key Improvements Over Standard RAG Pattern
 
 ### 1. Never Touch Original Files (Critical for Shared Source Folders)
-The OUM research folder at `D:\work\sayang\OUM` contains user documents that must not be modified.
+The OUM research folder at `<YOUR_WORK_FOLDER>\sayang\OUM` contains user documents that must not be modified.
 **Fix**: `copy_file_to_rag()` copies every file to `~/.hermes/cache/web/universal_rag/` before processing. Original path preserved in metadata as `original_path`.
 
 ### 2. Multi-Path File Resolution
@@ -49,7 +49,7 @@ python3 script.py
 
 ### 7. Path Normalization
 ```python
-# Problem: Windows paths like D:\work\sayang\OUM cause escaping issues
+# Problem: Windows paths like <YOUR_WORK_FOLDER>\sayang\OUM cause escaping issues
 # Fix: normalize all paths to forward slashes
 def _normalize_path(self, path):
     return path.replace('\\', '/').strip()

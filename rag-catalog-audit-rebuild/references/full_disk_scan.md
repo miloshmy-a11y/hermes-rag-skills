@@ -6,7 +6,7 @@ Crossref-verified, without polluting it with course notes / ebooks / forms.
 ## Phase A — extract text (run via terminal; pdftotext absolute path)
 ```
 PDFTO="C:/Users/Milos/scoop/apps/git/2.52.0/mingw64/bin/pdftotext.exe"
-for each pdf under D:/work/sayang/OUM and D:/work/mendeley import:
+for each pdf under <YOUR_WORK_FOLDER>/OUM and <YOUR_WORK_FOLDER>/mendeley import:
     subprocess.run([PDFTO,'-q',src, txtp], timeout=60)
 # keep txt in DISK_TEXT/ so re-runs are instant
 ```

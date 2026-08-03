@@ -65,6 +65,8 @@ catalog. If a DOI exists, Crossref-override the heuristic values.
 6. Save catalog; confirm `full_text_status: present` and both file paths exist on disk.
 
 ## Pitfalls
+> Windows/MSYS path + interpreter gotchas are consolidated in `references/windows-environment-notes.md` (single source) — keep edits there.
+
 - **Never `import fitz` in execute_code** — use `terminal()` with the helper script.
 - **Backslash paths** in inline `python3 -c "..."` break (`\U` unicode error) — prefer
   forward slashes or call the script via a file. In execute_code, `os.path` is fine.
@@ -73,7 +75,27 @@ catalog. If a DOI exists, Crossref-override the heuristic values.
 - **Don't redownload** a PDF that's already in `SOURCE_PDFS/` (check basename first).
 - The helper's metadata regex is best-effort; **verify, don't assume**.
 
+## Paywalled full text → extract S2 paper-page HTML (key lesson 2026-08-03)
+When a PDF is behind a paywall (Wiley/Elsevier/SAGE etc.), **direct PDF download 403s**
+and `web_extract` on the `doi.org` landing page returns 0 chars (publisher blocks bots).
+The reliable workaround: **extract the Semantic Scholar paper page**, which is bot-accessible
+and embeds the abstract + references + often full text:
+```python
+from s2 import get_paper
+from hermes_tools import web_extract
+p = get_paper(f"DOI:{doi}", fields="paperId,title")
+url = f"https://www.semanticscholar.org/paper/{p['paperId']}"
+r = web_extract(urls=[url], char_limit=10000)
+text = r['results'][0]['content']   # save as <stem>.md in SOURCE_TEXT/
+```
+This recovered full text for ~46/47 paywalled 2020+ thesis refs in one pass. Mark the
+entry `full_text_status: html_extracted` and store the `.md` path in `files.full_text_md`.
+Not a substitute for a real PDF when one is obtainable, but far better than nothing for a
+lit review. (Open-access publishers — MDPI, PMC, Frontiers, PLOS, Hindawi, BMJ Open —
+often DO serve real PDFs via their article URL; try those first.)
+
 ## Test status (2026-08-03)
 - Cheku 2024 PDF (754KB, 11pp): PyMuPDF extracted 48,052 chars, 0 empty pages. ✅
 - `pdftotext -layout` produces equivalent text as fallback. ✅
 - Metadata heuristic: year + abstract reliable; title/authors need verification. ✅ (as draft)
+- S2 paper-page HTML extraction: recovered full text for 46/47 paywalled thesis refs. ✅

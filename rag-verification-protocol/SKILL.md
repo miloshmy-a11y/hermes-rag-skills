@@ -16,9 +16,14 @@ DOI verification only confirms a citation is real. It says nothing about whether
 
 ## Two-Factor Verification (Both Required)
 
-### Factor 1: DOI Verified
-- Crossref returns HTTP 200, metadata matches catalog entry
-- Confirms the **citation is real**
+### Factor 1: DOI Verified (Crossref is the authoritative metadata source)
+- Crossref returns HTTP 200 for the DOI, and Crossref's returned title/authors/year/journal
+  match the catalog entry / the paper it claims to be. **Always resolve the DOI via Crossref**
+  (`https://api.crossref.org/works/<DOI>`) — trust Crossref over OpenAlex, Semantic Scholar,
+  PubMed, or any retrieved full-text snippet. Do NOT judge a DOI wrong from fallback text
+  (S2-page/PubMed can return a wrong record for old/non-biomedical DOIs). Crossref registration
+  data is the canonical citation record.
+- Confirms the **citation is real AND correctly attributed**.
 
 ### Factor 2: Content Verified  
 - Population match: actual studied population matches query

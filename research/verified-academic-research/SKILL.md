@@ -29,7 +29,7 @@ User requests finding academic studies with verified citations, extracting summa
 ### 2. Verification Phase (Priority Order)
 **User Preference Enforcement**: When the user requests research, they require ALL claims to have backup with accurate, verified citations. Every claim presented must be traceable to verified source material — no speculative or secondary summaries. Apply this standard rigorously:
 
-1. **Primary**: DOI confirmed active via Crossref with matching metadata (title, authors, year, abstract)
+1. **Primary**: DOI confirmed active via Crossref with matching metadata (title, authors, year, abstract). **Crossref is the authoritative citation/metadata source** — trust its returned title/authors/year over OpenAlex, Semantic Scholar, PubMed, or any retrieved full-text snippet. Never conclude a DOI is wrong from fallback text (S2-page/PubMed can return a wrong record for old/non-biomedical DOIs); verify the DOI, not the snippet.
 2. **Secondary**: PMC/EUtils confirmation without Crossref (check NCBI EUtils API for DOI + abstract)
 3. **Tertiary**: Multiple independent non-DOI sources agreeing (publisher pages, institutional repositories, citation networks)
 4. **Minimum**: Single secondary mention only — mark as "CITED ONLY"
@@ -67,23 +67,25 @@ For each verified study, extract:
 
 ## Full-Text Acquisition Workflow
 
-When a study needs to be added to the RAG catalog from web sources:
+When a study needs full text added to the RAG catalog, follow the consolidated chain in
+`research/general-purpose-rag/references/fulltext-retrieval-priority.md` (single source of truth).
+Key session-validated tactics:
 
-1. Verify DOI via Crossref API
-2. Try legal OA sources in priority order:
-   - **Hermes `web_extract` HTML (PRIMARY):** Resolve DOI → publisher landing URL (Crossref `URL`
-     field or `doi.org` redirect), then `web_extract(urls=[url], char_limit=60000)`. The HTML page
-     usually holds the FULL paper (~50–60k chars clean markdown), not just the abstract. This is the
-     highest-success route — it retrieved 46/50 DOIs that failed PDF download in one session. Run via
-     `execute_code` (batch ≤5 URLs/call); `web_extract` is NOT importable from terminal Python.
-   - Crossref oa_url → Europe PMC → Unpaywall → CORE → DOAJ (for the actual PDF when available)
-3. If PDF unavailable via the above, the web_extract HTML above already covers it — do not fall through
-   to defuddle CLI (prefer `web_extract`, which cleans content natively; defuddle CLI hits Cloudflare).
-4. If still blocked (BMJ Open, OUP, JSTOR, subscription instruments), note `full_text_html:''` and flag
-   as needing a real browser session (the `browser` tool holds cookies/JS) — do NOT claim fetched.
-5. Save extracted text, deduplicate, backup, sync to skill folder.
+1. Verify DOI via Crossref API.
+2. Follow the consolidated chain in `research/general-purpose-rag/references/fulltext-retrieval-priority.md`
+   (SINGLE SOURCE OF TRUTH). Key session-validated tactics it encodes:
+   - **Paywalled publisher PDFs (Wiley/Elsevier/SAGE) 403 on bot GET**, and `web_extract` on the `doi.org`
+     landing page returns 0 chars (publisher blocks bots). The reliable workaround is **S2 paper-page HTML**:
+     `get_paper(f"DOI:{doi}", fields="paperId")` → `web_extract(urls=["https://www.semanticscholar.org/paper/<paperId>"])`.
+     S2 pages are bot-accessible and embed abstract + references + often full text (recovered 46/47 paywalled
+     2020+ thesis refs in one pass). Store as `.md` in `SOURCE_TEXT/`, set `full_text_status: s2_page_extracted`.
+   - If a paper is not on S2, try **PubMed** (`https://pubmed.ncbi.nlm.nih.gov/<pmid>/`) — extractable even
+     when S2 lacks the paper (recovered the final 3 of 285 post-2020 studies this way).
+3. Never present a login-wall/landing page as "full text." Assert real PDF or extracted-HTML, else mark
+   `full_text_status: pending`.
 
-**See `references/fulltext-acquisition-pipeline.md` for the detailed priority chain.**
+`web_extract` is importable ONLY inside `execute_code` (not terminal Python). Batch ≤5 URLs/call.
+
 - **PLATFORM RENDERING WARNING**: Some chat interfaces (including Hermes desktop) automatically convert plain text URLs into clickable hyperlinks with embedded page titles. This is a rendering artifact, NOT a formatting error. When the user sees "title | Publisher" instead of the actual URL, this is the platform's URL preview feature, not a mistake in the reference entry. The underlying text reference IS correctly formatted with the plain text DOI/URL.
 
 ## Local Catalog Search (hybrid) + APA output
@@ -119,6 +121,8 @@ Author, A. A, Author, B. B, & Author, C. C. (Year). Title of the article. *Title
 - EVER use citation tool exports (which wrap the study title in a clickable hyperlink)
 
 **Always extract metadata directly from Crossref API** (`https://api.crossref.org/works/{DOI}`) rather than copying from citation tool outputs or formatted reference generators. The user has repeatedly emphasized that references must show the actual DOI/URL as plain text, not as a clickable link attached to the title.
+
+**Full-text sufficiency rule (user directive 2026-08-03):** a complete PDF body is not required for every entry. For **foundational / frequently-cited** works (e.g. Karasek 1979 demand-control, Selye 1936 GAS, Siegrist ERI, Gray-Toft & Anderson NSS, French 2000 ENSS) cited across hundreds of papers, an abstract or a snippet from a secondary source (publisher page, PubMed abstract, or a citing paper's description) is sufficient. Do not burn retrieval effort chasing the full body of such classics — record `full_text_status: meta_only`/`abstract_only` with the Crossref-verified citation, then move on. Pursue full body text only for (a) the user's own thesis citations that are primary studies being read for content, or (b) studies specifically queried for their findings.
 
 ### 5. Limitations Handling
 - Clearly distinguish between verified full publication details vs. details needing additional verification
@@ -188,6 +192,8 @@ Author, A. A, Author, B. B. (Year). Title of the article. *Title of the Journal*
 
 **DOI/URL Requirement**: Every reference MUST include either a DOI or an official URL. For studies without a DOI, verify through publisher pages, institutional repositories, ISBN records, or conference/book chapter URLs. Never present a reference without a traceable URL/DOI.
 
+**Preserve user-verified metadata (CRITICAL)**: When backfilling catalog metadata from Crossref/S2/OpenAlex, the user's manually-verified title/authors/year are AUTHORITATIVE. **Only fill EMPTY fields — never overwrite existing values.** Guard every write: `if not d.get('venue'): d['venue']=...`; `if not d.get('apa_citation'): d['apa_citation']=...`; `if not (d.get('authors') and [a for a in d['authors'] if a]): d['authors']=...`. This prevents silently clobbering a correct hand-curated reference with noisier API metadata. When in doubt, keep the user's value.
+
 **Verification Status Indicators**: Prefix each study with a verification status. TWO checks required:
 - DOI VERIFIED — DOI resolves via Crossref, metadata (title/authors/year) matches source
 - CONTENT VERIFIED — Full text confirms studied population matches AND finding matches criteria
@@ -206,5 +212,8 @@ Author, A. A, Author, B. B. (Year). Title of the article. *Title of the Journal*
 - `references/rag-web-indexing-workflow.md` — Step-by-step workflow for indexing web-found studies into the RAG catalog: DOI verification, PDF acquisition, text extraction, deduplication, and backup
 - `references/data-quality-control.md` — Quality scoring, placeholder author detection, auto-enhancement from Crossref
 - `references/defuddle-html-extraction.md` — Defuddle publisher compatibility matrix and fallback chain
-- `references/fulltext-acquisition-pipeline.md` — Priority chain for full-text retrieval (Crossref → Unpaywall → Defuddle → web_extract)
+- `references/citation-workflow.md` — Verified citation workflow: 2-source verification, DOI content-negotiation for authoritative BibTeX, hallucination prevention (adapted from NousResearch hermes-agent)
+- `scripts/crossref_backfill.py` — Non-destructive Crossref backfill (venue/apa/abstract/authors/year) + BibTeX via content-negotiation. Fills ONLY empty fields; preserves user-verified data. Run: `python3 scripts/crossref_backfill.py <CATALOG.json> [--min-year 2020] [--domains ...]`
 - `references/self-correction-patterns.md` — Auto-verification triggers, quality scoring, and Crossref auto-enhancement patterns for catalog entries
+
+> **Full-text retrieval priority:** see `research/general-purpose-rag/references/fulltext-retrieval-priority.md` (consolidated chain).

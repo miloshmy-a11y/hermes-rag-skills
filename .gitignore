@@ -24,3 +24,11 @@ __pycache__/
 *.zip
 *.png
 *.jpg
+
+# Runtime manifests / telemetry (not skill source)
+.usage.json
+.usage.json.lock
+.bundled_manifest
+
+# Bundled catalog snapshot (real data, not skill source) — keep out of repo
+**/UNIVERSAL_CATALOG.json

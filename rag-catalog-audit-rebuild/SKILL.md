@@ -47,7 +47,7 @@ source PDFs on disk.
    92 old ENSS/SelectedStudies candidates caught 13 junk malformed DOIs and recovered 69 real studies.
 9. **Prefer the obvious academic subtree over whole-drive scans.** User said studies live under
    `OUM` and its subfolders — do NOT scan all of `D:\` (1,182 PDFs of which most are bitcoin/visa/
-   accounting junk). Target `D:\work\sayang\OUM` + `mendeley import`; that's where the ~600 article
+   accounting junk). Target `<YOUR_WORK_FOLDER>\sayang\OUM` + `mendeley import`; that's where the ~600 article
    PDFs are. Saves time and avoids junk.
 10. **INCLUSIVE scope — never advise excluding doc types.** The user explicitly plans to include theses,
    ebooks, instruments, and web/org references in the RAG, not just peer-reviewed `study` PDFs. Do NOT
@@ -129,7 +129,7 @@ before writing paths.
 When the user says "I have 100-200 peer-reviewed articles across my disk / my thesis," the catalog is
 probably missing most of them because a prior rebuild only indexed a few pointed-at folders. Scan the
 user's actual research subtree (not the whole drive — see rule 9). Working approach (proven this session):
-1. `find` the subtree for `*.pdf` (e.g. `D:\work\sayang\OUM` + `D:\work\mendeley import` → ~600 PDFs).
+1. `find` the subtree for `*.pdf` (e.g. `<YOUR_WORK_FOLDER>\sayang\OUM` + `<YOUR_WORK_FOLDER>\mendeley import` → ~600 PDFs).
 2. Extract text with pdftotext (run via `terminal`, absolute path) into a `DISK_TEXT/` dir. KEEP the
    extracted text across runs — re-runs are then near-instant.
 3. **Classifier pitfall (cost a revert this session):** a naive "has abstract + references → study"
