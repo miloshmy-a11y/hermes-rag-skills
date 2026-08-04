@@ -10,7 +10,7 @@ When Hermes' terminal runs under MSYS/git-bash, Windows paths get mangled:
   handles native paths fine.
 
 **Mitigation (don't re-discover this):**
-- Pass paths as forward slashes: `<HERMES_HOME>/...` works in both `terminal()` and Python.
+- Pass paths as forward slashes: `C:/Users/Milos/...` works in both `terminal()` and Python.
 - Prefer `execute_code` + `os.path.join` over inline `-c` one-liners with backslashes.
 - The real fix belongs in the underlying script (normalize paths with `pathlib.Path`), not in
   documentation — flagged for script-level fix.

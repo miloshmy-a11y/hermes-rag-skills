@@ -1,6 +1,6 @@
 ---
 name: rag
-description: "Master entry point for ALL RAG / literature-catalog work: searching the user's paper catalog, indexing/adding new PDFs, verifying citations (DOI + Crossref/Semantic Scholar/OpenAlex), auditing or repairing a corrupted catalog, fetching open-access full text, and enrichment. Routes to the correct sub-skill (general-purpose-rag, openalex-skill, paper-fetch, verified-academic-research, rag-catalog-audit-rebuild). Use for ANY request about the research paper collection, literature review, citation checks, or PDF ingestion."
+description: "Master entry point for ALL RAG / literature-catalog work: searching the user's paper catalog, indexing/adding new PDFs, verifying citations (DOI + Crossref/Semantic Scholar/OpenAlex), auditing or repairing a corrupted catalog, fetching open-access full text, and enrichment. Routes to the correct sub-skill (general-purpose-rag, openalex-skill, paper-fetch, verified-academic-research, rag-catalog-audit-rebuild). Use for ANY request about the research paper collection, literature review, citation checks, or PDF ingestion. Audit/dedup/rebuild sub-skills now live under research/ (e.g. research/rag-catalog-auditing, research/rag-catalog-audit-rebuild, research/rag-corpus-integrity)."
 version: 1.1.0
 author: Hermes Agent
 license: MIT

@@ -28,25 +28,42 @@ Found: Multiple sources confirming Malaysian ENSS studies.
 
 ## Key Sources Identified
 
-### Primary Studies Using ENSS with Malaysian Nurses:
+### Primary Studies Using ENSS with Malaysian Nurses (CONFIRMED, 2026-08):
 
-1. **Paneerselvam, Abdul Samad, & Hussin (2023)** - *Prevalence of job stress among nurses in Hospital Universiti Sains Malaysia*
-   - Used ENSS with 143 nurses from HUSM
-   - Cross-sectional design, ENSS reliability alpha = 0.879
-   - Results: 61.5% mild stress, 31.5% moderate, 1.4% severe
-   - Published in: "OSH Issues: Collection of Case Studies in Malaysia 2023"
-   - ISBN: 978-629-7566-81-8
+> NOTE (accuracy correction 2026-08-04): The earlier version of this note attributed an ENSS
+> HUSM study to "Paneerselvam, Abdul Samad, & Hussin (2023)" with alpha 0.879 / 61.5%-31.5%-1.4%.
+> That attribution was NOT verified against the catalog. The two CONFIRMED Malaysian ENSS
+> studies are listed below. The HUSM/Kelantan study is in the catalog as `10.37231/ajmb.2022.6.S1.517`
+> (East Coast Teaching Hospital, 2022, ENSS + SAQ). Treat the Paneerselvam 2023 detail as
+> UNVERIFIED until cross-checked via Crossref.
 
-2. **Rosnawati, Moe, Masilamani, & Darus (2010)** - *The Bahasa Melayu Version of the Nursing Stress Scale Among Nurses: A Reliability Study in Malaysia*
-   - Adapted NSS (not ENSS) for Bahasa Melayu
-   - 30 nurses for test-retest reliability
-   - Published in: Asia Pacific Journal of Public Health, 22(4), 501-506
-   - DOI: 10.1177/1010539510380560
+1. **Chittra Selvi a/p Bala Krishnan (2026, OUM FYP)** - *Factors Inducing Work-Related Stress
+   among Staff Nurses of In-patient Wards in a Government Hospital* (Hospital Seri Manjung, Perak)
+   - Used **ENSS + NSS** (+ PSS, HSOPSC, Turnover Intention). n=195 staff nurses.
+   - This is the user's own 2nd-Malaysian-ENSS-study thesis. Workload, Problems with Supervisors,
+     and Patients/Families were the TOP ENSS subscales.
+   - Local record: `local:chittra-thesis-2026-work-stress-hsm`.
 
-3. **Kunwar et al. (2025)** - *Occupational stress among the nurses working in a Medical College Hospital in Nepal*
-   - Used ENSS with 311 nurses (not Malaysian but relevant context)
-   - Published in: Industrial Psychiatry Journal, 34(2), 210-214
-   - DOI: 10.4103/ipj.ipj_20_25
+2. **East Coast / HUSM study (2022)** - *The Overview of Job Stress and Patient Safety Culture
+   among Nurses in the East Coast Teaching Hospital, Malaysia*
+   - Used **ENSS + SAQ** (Safety Attitude Questionnaire). DOI: `10.37231/ajmb.2022.6.S1.517`.
+   - Catalog record: `10.37231/ajmb.2022.6.S1.517`. (This is the Kelantan/HUSM ENSS study;
+     verify whether Paneerselvam et al. are the authors via Crossref before citing the 2023 ISBN edition.)
+
+3. **Rosnawati, Moe, Masilamani, & Darus (2010)** - *The Bahasa Melayu Version of the Nursing Stress
+   Scale Among Nurses: A Reliability Study in Malaysia*
+   - Adapted **NSS** (not ENSS) for Bahasa Melayu. 30 nurses, test-retest reliability.
+   - Asia Pacific Journal of Public Health, 22(4), 501-506. DOI: 10.1177/1010539510380560.
+   - Catalog record: `10.1177/1010539510380560`.
+
+4. **Cheku et al. (2024)** - *Occupational stress, job satisfaction and intent to leave: Nurses at the
+   Terengganu Tertiary Referral Hospital* (MJPHM 2024, 24(3):240-250)
+   - Used **NSS** (+ Turnover Intention). Malaysian nursing stress study (NSS instrument).
+   - Catalog record: `local:cheku2024nwsqinflfctpdfstudy`.
+
+### Non-Malaysian ENSS (context only):
+- **Kunwar et al. (2025)** - Occupational stress among nurses in a Medical College Hospital, Nepal.
+  ENSS, 311 nurses. Industrial Psychiatry Journal, 34(2), 210-214. DOI: 10.4103/ipj.ipj_20_25.
 
 ### Secondary References Cited in Malaysian Studies:
 
