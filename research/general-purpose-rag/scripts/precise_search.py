@@ -189,14 +189,18 @@ def _is_student_study(d):
 def _index_text(d):
     """The index fields an agent should search — LLM-readable, not script-spam:
     title + official_keywords (author terms) + brief_abstract (LLM-compressed summary)
-    + measures (instruments used, e.g. ENSS) so instrument-specific queries resolve."""
+    + key_findings (per-study conclusion, indexed for finding-level queries)
+    + measures (instruments used, e.g. ENSS) + abstract, so both keyword and
+    finding-phrased queries resolve."""
     return ' '.join([
         str(d.get('title', '')),
         ' '.join(d.get('official_keywords', []) or []),
         str(d.get('brief_abstract', '') or ''),
+        str(d.get('key_findings', '') or ''),
         ' '.join(d.get('measures', []) or []),
         str(d.get('abstract', '') or ''),
     ]).lower()
+
 
 
 def _term_df(term, docs):

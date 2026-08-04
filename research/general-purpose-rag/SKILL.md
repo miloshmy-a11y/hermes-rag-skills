@@ -141,9 +141,17 @@ out = staged_search(docs, query="stress among nurses in Malaysia since 2020",
 
 **Staged expansion (follows old universal_rag.py philosophy):** — TOPIC-AGNOSTIC
 1. **Targeted index search** — match on INDEX fields (title + brief_abstract + official_keywords
-   + measures + paper_category). Population and geography are applied ONLY if the query names
+   + measures + paper_category + **key_findings**). Population and geography are applied ONLY if the query names
    them (e.g. "nurses in Malaysia"); otherwise the whole catalog is searched. Topic = whatever
    the query says (stress, turnover, wound care, diabetes, ...).
+   - **`key_findings`** (NEW, required for every `study`/`review`/`reference_doc`): a 1–3 sentence
+     *indexed conclusion of what the study actually found* — written from the abstract/full text,
+     not the title. This is what lets queries like "workload as the most significant stress factor"
+     match on the FINDING, not just a keyword. Format: plain prose, e.g.
+     "Workload (heavy patient assignments, understaffing) was the strongest/most-cited stressor;
+     supervisor conflict and patient-family conflict ranked next." Keep it finding-focused, not a
+     methods summary. Never fabricate — if the paper doesn't state a ranking, say "workload reported
+     among the top stressors" not "the #1 factor".
 2. **If < min_results (3)**: expand synonyms (e.g. `stress`→`occupational stress`,
    `work-related stress`, `burnout`→`compassion fatigue`), re-search index.
 3. **If still < 3**: scan full-text files (slower, higher recall). Studies found this way
@@ -175,7 +183,26 @@ out = staged_search(docs, query="stress among nurses in Malaysia since 2020",
 
 This method returns a focused, on-topic, relevance-ranked set — not "everything mentioning nurses".
 
-## Legal Full-Text Retrieval Pipeline
+## Enrichment: `key_findings` (per-study conclusion, indexed)
+
+The catalog's `brief_abstract` is a summary; it does NOT capture *what the study concluded*.
+To make finding-level queries ("workload = most significant stress factor") retrievable, every
+`study` / `review` / `reference_doc` MUST carry a `key_findings` field: a 1–3 sentence plain-prose
+conclusion of the paper's actual results, written FROM the abstract/full text.
+
+- **On ingest (new record):** write `key_findings` from the abstract (or full text if available)
+  before appending. This is part of the same write that adds `brief_abstract` + `keywords_llm`.
+- **Backfill (existing docs):** do NOT bulk-rewrite all 528 at once (hallucination risk + cost).
+  Backfill **progressively** — when a study is touched (opened for a query, re-verified, or
+  re-read), add `key_findings` then. A targeted backfill script may process a batch, but each
+  entry's `key_findings` must be derived from THAT paper's own abstract/full text, never invented.
+- **Honesty guard:** if the paper states a ranking ("workload was the strongest predictor"),
+  record it; if it only lists workload among stressors, write "workload reported among the top
+  stressors" — never upgrade a weak claim to a strong one.
+- **Search uses it:** `precise_search` already matches `key_findings` (added to INDEX fields
+  above), so finding-phrased queries now hit conclusions, not just titles/keywords.
+
+
 
 Follow the consolidated chain in `references/fulltext-retrieval-priority.md` (SINGLE SOURCE OF TRUTH). Summary: OpenAlex `oa_url` → Unpaywall → Europe PMC → CORE → DOAJ → paper-fetch → **S2 paper-page HTML** (for paywalled papers that 403 on bot GET) → PubMed → web_search last resort. Sci-Hub is NOT used — direct tests confirm it is non-functional (anti-bot/CAPTCHA walls, 403s). The working pipeline is OpenAlex/Unpaywall/PMC/S2-page/PubMed only. Windows/MSYS path gotchas live in `pdf-processing/references/windows-environment-notes.md` (top-level in this repo) — or `software-development/pdf-processing/references/windows-environment-notes.md` in Hermes' category-organized local tree.
 
