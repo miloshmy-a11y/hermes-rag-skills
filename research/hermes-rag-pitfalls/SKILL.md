@@ -91,3 +91,55 @@ d = json.load(open(r"<HERMES_CACHE>/universal_rag/UNIVERSAL_CATALOG.json", encod
 print(len(d), "docs")
 print([x for x in d if not x.get("doi")], "missing-doi")
 ```
+
+## 7. Catalog data-integrity pitfalls (recurring — found & fixed 2026-08-04)
+These are the **data** failures (not logic), each verified and resolved. Re-check before
+trusting a search result's full text.
+
+### 7.1 Two records share a DOI = NOT always a duplicate
+- **Symptom:** dedup-by-DOI deletes a record, but the two papers have *different* titles/authors.
+- **Cause:** one record carries a **wrong DOI** (copy-paste/extraction error); the other is the real paper.
+- **Resolution (verified):** never delete on DOI alone. Compare **title + first author**; if they
+  differ, FLAG for review (wrong-DOI-on-different-study), do NOT delete. Only merge when
+  title+authors+year match (e.g. preprint `10.21203/rs.3.rs-...` vs published `10.1136/bmjopen-...`).
+- **Verify:** `from collections import Counter; c=Counter(d.get('doi') for d in docs if d.get('doi')); assert not any(v>1 for v in c.values())` — but ALSO scan same-normalized-title across *different* DOIs.
+
+### 7.2 `full_text_md` / `extracted_text` pointing at a Semantic Scholar / search page
+- **Symptom:** file exists but content is `"[Skip to search form] ..."` or a Related-Papers list —
+  NOT the paper. Often stored as a bare `SOURCE_TEXT/.md` (empty basename) and linked by 3+ records.
+- **Cause:** S2 paper-page HTML was saved as the "full text" without extracting the article body.
+- **Resolution (verified):** delete the orphan `.md`; set affected records `full_text_status: pending`,
+  remove the bad `full_text_md` key. They have NO valid full text — do not fabricate.
+- **Verify:** grep file head for `semanticscholar.org/paper/` + `Skip to` + `Related Papers`.
+
+### 7.3 `meta_only` record with dangling `full_text_pdf`/`extracted_text` keys
+- **Symptom:** `full_text_status: meta_only` BUT `files` block lists `full_text_pdf`/`extracted_text`
+  paths to PDFs that were never downloaded (status says meta_only, pointers imply a file).
+- **Resolution (verified):** strip the dangling keys so `files` reflects reality; keep `meta_only`.
+- **Verify:** for every `meta_only` record, assert none of
+  `full_text_pdf/extracted_text/full_text_html/full_text_md` exist in `files`.
+
+### 7.4 Audit-script format drift (the silent stale-warning trap)
+- **Symptom:** `audit_fulltext_mismatch.py` crashes with `TypeError: list indices must be integers`
+  and an old "7 status=present no file" warning keeps replaying.
+- **Cause:** the audit expects `data["documents"]` (dict) but the live catalog is a **bare JSON
+  list**. The warning is FROZEN OLD DATA, not a fresh run.
+- **Resolution (verified):** run the audit logic against `json.load(...)` (a list) directly;
+  current catalog shows 0 status/disk inconsistencies, 0 wrong-body files. Don't trust the
+  cached stale warning — re-run the check against the live list.
+- **Verify:** `docs = json.load(open(CAT))` (no `["documents"]`); re-run the same checks fresh.
+
+### 7.5 Index↔full-text link must be 100% (the RAG contract)
+- The index is a HELPER to narrow candidates; the LLM opens the resolved full text for the final
+  relevance call. If a `files.extracted_text` path doesn't resolve, the loop silently loses a study.
+- **Verify (run before any search-driven claim):** resolve every `extracted_text`/`full_text_md`/
+  `full_text_html` pointer across all records; `broken` must be 0. (Verified 480/480 resolve, 0 broken.)
+- **Enhancement rule:** when the LLM judges a full text RELEVANT, backfill `key_findings` (1–3
+  sentence conclusion) FROM that text, so later index searches surface it. Never invent rankings.
+
+### 7.6 Title-field corruption (abstract text / doubled chars leaked in)
+- **Symptom:** `authors` or `title` contains `"Background: ..."` or `"TThhee W Woorlrdld..."`.
+- **Cause:** PDF text-extraction artifact bled into metadata; or `['Ethics']` from a cover-letter doc.
+- **Resolution (verified):** clear/repair from the authoritative source (Crossref for authors;
+  extracted_text for title). WHO-5 title repaired from its own extracted body.
+- **Verify:** flag any `authors` entry containing `background:`/`methods`/`ethics` as leaked text.
