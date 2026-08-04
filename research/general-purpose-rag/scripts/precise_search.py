@@ -190,13 +190,17 @@ def _index_text(d):
     """The index fields an agent should search — LLM-readable, not script-spam:
     title + official_keywords (author terms) + brief_abstract (LLM-compressed summary)
     + key_findings (per-study conclusion, indexed for finding-level queries)
-    + measures (instruments used, e.g. ENSS) + abstract, so both keyword and
-    finding-phrased queries resolve."""
+    + keywords_llm (LLM-enriched topic tags) + tags (agent/enrichment tags)
+    + measures (instruments used, e.g. ENSS) + abstract, so keyword, finding-phrased,
+    and topic-tag queries all resolve. keywords_llm/tags are the fields the ingest
+    workflow backfills from verified full text, so they MUST be searched."""
     return ' '.join([
         str(d.get('title', '')),
         ' '.join(d.get('official_keywords', []) or []),
         str(d.get('brief_abstract', '') or ''),
         str(d.get('key_findings', '') or ''),
+        ' '.join(d.get('keywords_llm', []) or []),
+        ' '.join(d.get('tags', []) or []),
         ' '.join(d.get('measures', []) or []),
         str(d.get('abstract', '') or ''),
     ]).lower()
